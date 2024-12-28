@@ -6,7 +6,7 @@ This repository is for an app to visualize various investable securities, includ
 - US treasuries
 
 ## File structure:
-- The app .py file is located at the highest level in the repository
+- The app .py file is located at the highest level in the repository. There is also a secondary .py file with supplemental functions for the app also located in the same location.
 - The assets folder contains the files necessary for dash bootstrap components to format the app layout
 - The inputs folder contains the files that contains reference data necessary for the app to function
 
