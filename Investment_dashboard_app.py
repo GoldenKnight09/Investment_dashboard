@@ -20,65 +20,80 @@ investment_ticker_symbols = pd.read_excel(io = 'inputs/Investment_ticker_symbols
 stock_df = investment_ticker_symbols['Stock_list'].set_index('Ticker')
 # look-up df for indices:
 index_df = investment_ticker_symbols['Index_list'].set_index('Ticker')
-index_dropdown_dict = dict((value, label) for label,value in zip(investment_ticker_symbols['Index_list']['Index'],
-                                                                 investment_ticker_symbols['Index_list']['Ticker']))
-# for some reason, dcc.Dropdown displays the dict value rather than the dict key, so invert dict
+index_dropdown_dict = list({'label':investment_ticker_symbols['Index_list'].loc[row,'Index'],
+                            'value':investment_ticker_symbols['Index_list'].loc[row,'Ticker']} for row in investment_ticker_symbols['Index_list'].index)
 stock_dropdown_dict_by_group = {}
 stock_group_list = list(investment_ticker_symbols['Stock_list'].Group.unique())
 for stock_group in stock_group_list:
     stock_group_df = investment_ticker_symbols['Stock_list'].loc[investment_ticker_symbols['Stock_list']['Group'] == stock_group,:]
-    stock_dict_by_group = dict((value, label) for label,value in zip(stock_group_df['Stock'],
-                                                                     stock_group_df['Ticker']))
-    stock_dropdown_dict_by_group[stock_group] = stock_dict_by_group
-
-index_ticker_list = index_df.index.to_list()
+    stock_dict_list_by_group = list({'label':stock_group_df.loc[row,'Stock'],
+                                     'value':stock_group_df.loc[row,'Ticker']} for row in stock_group_df.index)
+    stock_dropdown_dict_by_group[stock_group] = stock_dict_list_by_group
 
 # load stock category descriptions modal from txt file (with markdown)
 with open('inputs/stock_categories_modal.txt','r') as scm:
     stock_cat = scm.read()
+    
+# list for radio list of date options (both stock & indices)
+radio_date_items = [{'label':'7 days','value':7},
+                    {'label':'14 days','value':14},
+                    {'label':'1 month','value':30},
+                    {'label':'3 months','value':90},
+                    {'label':'6 months','value':180},
+                    {'label':'YTD','value':0},
+                    {'label':'1 year','value':365},
+                    {'label':'Max','value':-1},
+                    {'label':'Custom Range','value':'custom'}]
     
 app = Dash(__name__)
 server = app.server
 
 app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasury Investing Dashboard',
                                                    style = {'text-align':'center'})),
-                                  html.Div(dbc.Tabs(children = [dbc.Tab(children = [dbc.Button('Click here for an explanation of the stock categories',
-                                                                                               id = 'open_stock_cat_def_modal'),
-                                                                                    dbc.Modal(children = [dbc.ModalHeader(dbc.ModalTitle('Stock Category Definitions'),
-                                                                                                                          close_button = False),
-                                                                                                          dbc.ModalBody(dbc.Container(children = [dcc.Markdown(stock_cat)])),
-                                                                                                          dbc.ModalFooter(dbc.Button('Close',
-                                                                                                                                     id = 'close_stock_cat_def_modal',
-                                                                                                                                     className = 'ml-auto'))],
-                                                                                              id = 'stock_cat_def_modal',
-                                                                                              size = 'lg',
-                                                                                              scrollable = True),
-                                                                                    dbc.Col(children = [dcc.Dropdown(options = stock_group_list,
-                                                                                                                     searchable = True,
-                                                                                                                     placeholder = 'Select a stock group...',
-                                                                                                                     id = 'stock_group_dropdown_menu'),
-                                                                                                        dcc.Dropdown()],
-                                                                                            width = 2),
-                                                                                    dbc.Col(children = [dbc.Label(id = 'stock_ticker_test')])],
-                                                                        label = "Stocks & ETF's",
-                                                                        style = {'margin-left':'3px'}),
-                                                                dbc.Tab(children = [dbc.Col(children = dcc.Dropdown(options = index_dropdown_dict,
-                                                                                                                    searchable = True,
-                                                                                                                    placeholder = 'Select an index...',
-                                                                                                                    id = 'index_dropdown_menu'),
-                                                                                            width = 2),
-                                                                                    # might need to wrap the Col's in a dbc.Row
-                                                                                    dbc.Col(children = [dbc.Label(id = 'index_ticker_test')],
-                                                                                            width = 4)],
-                                                                        label = 'Indices',
-                                                                        style = {'margin-left':'3px'}),
-                                                                dbc.Tab(children = [],
-                                                                        label = 'Commodities',
-                                                                        style = {'margin-left':'3px'}),
-                                                                dbc.Tab(children = [],
-                                                                        label = 'US Treasuries',
-                                                                        style = {'margin-left':'3px'})],
-                                                    style = {'margin-left':'3px'}))])
+                                  html.Div(dbc.Container(dbc.Tabs(children = [dbc.Tab(dbc.Row(children = [dbc.Col(children = [dbc.Container(children = [dbc.Button('Click here for an explanation of the stock categories',
+                                                                                                                                                                   id = 'open_stock_cat_def_modal'),
+                                                                                                                                                        dbc.Modal(children = [dbc.ModalHeader(dbc.ModalTitle('Stock Category Definitions'),
+                                                                                                                                                                                              close_button = False),
+                                                                                                                                                                              dbc.ModalBody(dbc.Container(children = [dcc.Markdown(stock_cat)])),
+                                                                                                                                                                              dbc.ModalFooter(dbc.Button('Close',
+                                                                                                                                                                                                         id = 'close_stock_cat_def_modal',
+                                                                                                                                                                                                         className = 'ml-auto'))],
+                                                                                                                                                                  id = 'stock_cat_def_modal',
+                                                                                                                                                                  size = 'lg',
+                                                                                                                                                                  scrollable = True),
+                                                                                                                                                        # consider dbc.Stack() with html.Div() for each "row" component to add spacing
+                                                                                                                                                        dcc.Dropdown(options = stock_group_list,
+                                                                                                                                                                     searchable = True,
+                                                                                                                                                                     placeholder = 'Select a stock group...',
+                                                                                                                                                                     id = 'stock_group_dropdown_menu'),
+                                                                                                                                                        dcc.Dropdown(),
+                                                                                                                                                        dbc.Label('Select a date range to display',
+                                                                                                                                                                  id = 'stock_radio_date_label'),
+                                                                                                                                                        dbc.RadioItems(options = radio_date_items,
+                                                                                                                                                                       value = 7,
+                                                                                                                                                                       id = 'stock_radio_date')],
+                                                                                                                                            fluid = True)],
+                                                                                                                  width = 3),
+                                                                                                          dbc.Col(children = [dbc.Container(children = [dbc.Label(id = 'stock_ticker_test')],
+                                                                                                                                            fluid = True)],
+                                                                                                                  width = 6)]),
+                                                                                      label = "Stocks & ETF's"),
+                                                                              dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(children = [dcc.Dropdown(options = index_dropdown_dict,
+                                                                                                                                                         searchable = True,
+                                                                                                                                                         placeholder = 'Select an index...',
+                                                                                                                                                         id = 'index_dropdown_menu'),
+                                                                                                                                            dbc.Label(id = 'index_ticker_test'),
+                                                                                                                                            dbc.RadioItems(options = radio_date_items,
+                                                                                                                                                           value = 7,
+                                                                                                                                                           id = 'index_radio_date')],
+                                                                                                                                fluid = True),
+                                                                                                                  width = 3)]),
+                                                                                      label = 'Indices'),
+                                                                              dbc.Tab(children = [],
+                                                                                      label = 'Commodities'),
+                                                                              dbc.Tab(children = [],
+                                                                                      label = 'US Treasuries')]),
+                                                         fluid = True))])
 
 @app.callback(Output(component_id='stock_cat_def_modal', component_property='is_open'),
               Input(component_id='open_stock_cat_def_modal',component_property='n_clicks'),
