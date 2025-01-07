@@ -35,14 +35,14 @@ with open('inputs/stock_categories_modal.txt','r') as scm:
     stock_cat = scm.read()
     
 # list for radio list of date options (both stock & indices)
-radio_date_items = [{'label':'7 days','value':7},
-                    {'label':'14 days','value':14},
-                    {'label':'1 month','value':30},
-                    {'label':'3 months','value':90},
-                    {'label':'6 months','value':180},
-                    {'label':'YTD','value':0},
-                    {'label':'1 year','value':365},
-                    {'label':'Max','value':-1},
+radio_date_items = [{'label':'7 days','value':'7d'},
+                    {'label':'14 days','value':'14d'},
+                    {'label':'1 month','value':'1m'},
+                    {'label':'3 months','value':'3m'},
+                    {'label':'6 months','value':'6m'},
+                    {'label':'YTD','value':'ytd'},
+                    {'label':'1 year','value':'1y'},
+                    {'label':'Max','value':'max'},
                     {'label':'Custom Range','value':'custom'}]
     
 app = Dash(__name__)
@@ -81,13 +81,18 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                               dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(children = [dcc.Dropdown(options = index_dropdown_dict,
                                                                                                                                                          searchable = True,
                                                                                                                                                          placeholder = 'Select an index...',
+                                                                                                                                                         value = '^GSPC',
                                                                                                                                                          id = 'index_dropdown_menu'),
-                                                                                                                                            dbc.Label(id = 'index_ticker_test'),
+                                                                                                                                            dbc.Label('Select a date range to display',
+                                                                                                                                                      id = 'index_radio_date_label'),
                                                                                                                                             dbc.RadioItems(options = radio_date_items,
-                                                                                                                                                           value = 7,
+                                                                                                                                                           value = '7d',
                                                                                                                                                            id = 'index_radio_date')],
                                                                                                                                 fluid = True),
-                                                                                                                  width = 3)]),
+                                                                                                                  width = 3),
+                                                                                                          dbc.Col(dbc.Container(children = [dcc.Graph(id = 'index_plot')],
+                                                                                                                                fluid = True),
+                                                                                                                  width = 6)]),
                                                                                       label = 'Indices'),
                                                                               dbc.Tab(children = [],
                                                                                       label = 'Commodities'),
@@ -111,11 +116,13 @@ def toggle_stock_modal(n1, n2, is_open):
 def stock_ticker_test_display(stock_group_value):
     return stock_group_value
 
-@app.callback(Output(component_id='index_ticker_test',component_property='children'),
-              Input(component_id='index_dropdown_menu',component_property='value'))
+@app.callback(Output(component_id='index_plot',component_property='figure'),
+              Input(component_id='index_dropdown_menu',component_property='value'),
+              Input(component_id='index_radio_date',component_property='value'))
 
-def index_ticker_test_display(index_value):
-    return index_value
+def render_index_plot(dropdown_ticker,radio_date):
+    fig_index = sup_func.generate_plotly_plot(dropdown_ticker, radio_date, 'Index', index_df)
+    return fig_index
 
 if __name__ == '__main__':
     app.run(debug = False)
