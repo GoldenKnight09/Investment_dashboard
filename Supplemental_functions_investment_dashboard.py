@@ -7,6 +7,7 @@ Created on Fri Dec 27 22:51:51 2024
 
 import pandas as pd
 from datetime import date, timedelta, datetime
+from re import compile
 # import dash_bootstrap_components as dbc
 import yfinance as yf
 import plotly.graph_objects as go
@@ -98,6 +99,24 @@ def start_date(radio_date_input):
         # case custom is not valid for this function, use guard if statement to block this function
         case _: # catch
             return date.today - timedelta(days = 3)
+        
+def stock_chart_y_label(ticker_symbol):
+    # Set stock price chart y-axis (currency) label
+    if '.' in ticker_symbol:
+        ticker_split = compile(r'.*\.(\D{1,2})')
+        match ticker_split.split(ticker_symbol)[1]:
+            case 'DE' | 'PA':
+                return 'Price (€)'
+            case 'L':
+                return 'Price (£)'
+            case 'SW':
+                return 'Price (CHF)'
+            case 'T' | 'SS':
+                return 'Price (¥)'
+            case 'HK':
+                return 'Price (HK$)'
+    else:
+        return 'Price ($)'
 
 def index_chart_y_label(ticker_symbol):
     # Set index price chart y-axis (currency) label
@@ -118,6 +137,8 @@ def equity_plot_y_label(ticker_symbol,equity_type):
     match equity_type:
         case 'Index':
             return index_chart_y_label(ticker_symbol)
+        case 'Stock':
+            return stock_chart_y_label(ticker_symbol)
 
 def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,custom_start_date = None,custom_end_date = None):
     '''
@@ -141,7 +162,10 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
     eq_data_by_date['date'] = pd.to_datetime(eq_data.index.date)
     eq_data_by_date = eq_data_by_date.set_index('date')
     if date_select != 'custom':
-        eq_start_date = start_date(date_select)
+        if date_select == 'max':
+            eq_start_date = datetime.strptime('19010101','%Y%m%d').date()
+        else:
+            eq_start_date = start_date(date_select)
         eq_end_date = date.today()
     else:
         eq_start_date = custom_start_date
@@ -149,6 +173,9 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
     eq_data_slice = eq_data_by_date.copy()
     eq_data_slice = eq_data_by_date.loc[(eq_data_by_date.index >= pd.to_datetime(eq_start_date)) &
                                         (eq_data_by_date.index <= pd.to_datetime(eq_end_date)),:]
+    # London stock exchange stocks reported in pence, convert to pounds
+    if '.L' in ticker_symbol:
+        eq_data_slice.loc[:,['Open','High','Low','Close']] = eq_data_slice[['Open','High','Low','Close']] / 100
     fig = go.Figure(data = [go.Candlestick(x = eq_data_slice.index,
                                            open = eq_data_slice['Open'],
                                            high = eq_data_slice['High'],
@@ -168,11 +195,13 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
                      tickfont_size = 12,
                      showline = True, # plot area border line
                      linecolor = 'black', # plot area border line color
+                     # mirror = True,
                      gridcolor = 'lightgray')
     fig.update_yaxes(title_font_size = 15,
                      tickfont_size = 12,
                      showline = True, # plot area border line
                      linecolor = 'black', # plot area border line color
+                     # mirror = True,
                      gridcolor = 'lightgray')
     if max(eq_data_slice['High'] > 10000):
         fig.update_yaxes(tickformat = '000')
