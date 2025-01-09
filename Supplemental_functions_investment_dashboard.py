@@ -46,7 +46,7 @@ def non_day_timedelta(increment_type,increment_amount):
     Inputs:
         increment_type: string indicating the type of increment to be used to determine the date
         increment_amount: number indicating the amount of the increment to be used
-    Returns: a datetime object (starting date for slicing equity data)
+    Returns: a datetime object (starting date argument for history() method)
     '''
     today_year = date.today().year
     today_month = date.today().month
@@ -70,7 +70,7 @@ def non_day_timedelta(increment_type,increment_amount):
             new_month, new_day = 1,1
     else:
         new_day = today_day
-    return datetime.strptime(str(new_year)+str(new_month)+str(new_day),'%Y%m%d').date()
+    return str(new_year) + '-' + str(new_month) + '-' + str(new_day)
 
 def start_date(radio_date_input):
     '''
@@ -82,9 +82,9 @@ def start_date(radio_date_input):
     '''
     match radio_date_input:
         case '7d':
-            return date.today() - timedelta(days = 7)
+            return (date.today() - timedelta(days = 7)).strftime('%Y-%m-%d')
         case '14d':
-            return date.today() - timedelta(days = 14)
+            return (date.today() - timedelta(days = 14)).strftime('%Y-%m-%d')
         case '1m':
             return non_day_timedelta('m', 1)
         case '3m':
@@ -98,47 +98,47 @@ def start_date(radio_date_input):
         # case max is the full ticker dataframe, no need to filter, use guard if statement to block this function
         # case custom is not valid for this function, use guard if statement to block this function
         case _: # catch
-            return date.today - timedelta(days = 3)
+            return (date.today - timedelta(days = 3)).strftime('%Y-%m-%d')
         
-def stock_chart_y_label(ticker_symbol):
-    # Set stock price chart y-axis (currency) label
-    if '.' in ticker_symbol:
-        ticker_split = compile(r'.*\.(\D{1,2})')
-        match ticker_split.split(ticker_symbol)[1]:
-            case 'DE' | 'PA':
-                return 'Price (€)'
-            case 'L':
-                return 'Price (£)'
-            case 'SW':
-                return 'Price (CHF)'
-            case 'T' | 'SS':
-                return 'Price (¥)'
-            case 'HK':
-                return 'Price (HK$)'
-    else:
-        return 'Price ($)'
-
-def index_chart_y_label(ticker_symbol):
-    # Set index price chart y-axis (currency) label
-    match ticker_symbol:
-        case '^GDAXI':
-            return 'Price (€)'
-        case '^FTSE':
-            return 'Price (£)'
-        case '^N225' | '000001.SS' | '000300.SS':
-            return 'Price (¥)'
-        case '^HSI':
-            return 'Price (HK$)'
-        case _:
-            return 'Price ($)'
-
 def equity_plot_y_label(ticker_symbol,equity_type):
+    '''
+    Function to set the price chart y-axis (currency) label
+    
+    Inputs:
+        ticker_symbol: string of ticker symbol that is being visualized
+        equity_type: string corresponding to the type of equity (Stock, Index, Commodity), since options differ for each type
+    Returns: string with appropriate units for the plot
+    '''
     # select the function to use to determine equity plot y-axis label
     match equity_type:
         case 'Index':
-            return index_chart_y_label(ticker_symbol)
+            match ticker_symbol:
+                case '^GDAXI':
+                    return 'Price (€)'
+                case '^FTSE':
+                    return 'Price (£)'
+                case '^N225' | '000001.SS' | '000300.SS':
+                    return 'Price (¥)'
+                case '^HSI':
+                    return 'Price (HK$)'
+                case _:
+                    return 'Price ($)'
         case 'Stock':
-            return stock_chart_y_label(ticker_symbol)
+            if '.' in ticker_symbol:
+                ticker_split = compile(r'.*\.(\D{1,2})')
+                match ticker_split.split(ticker_symbol)[1]:
+                    case 'DE' | 'PA':
+                        return 'Price (€)'
+                    case 'L':
+                        return 'Price (£)'
+                    case 'SW':
+                        return 'Price (CHF)'
+                    case 'T' | 'SS':
+                        return 'Price (¥)'
+                    case 'HK':
+                        return 'Price (HK$)'
+            else:
+                return 'Price ($)'
 
 def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,custom_start_date = None,custom_end_date = None):
     '''
@@ -154,13 +154,6 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
     Returns:
         Plotly graph object: candlestick plot
     '''
-    eq_data = yf.Ticker(ticker_symbol).history(period = 'max')
-    # history periods: ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
-    # can use yf.download() for more open-ended requests, or just take max period and then filter (fewer requests)
-    # index is datetime stamp, only need dates for simple manipulations
-    eq_data_by_date = eq_data.copy()
-    eq_data_by_date['date'] = pd.to_datetime(eq_data.index.date)
-    eq_data_by_date = eq_data_by_date.set_index('date')
     if date_select != 'custom':
         if date_select == 'max':
             eq_start_date = datetime.strptime('19010101','%Y%m%d').date()
@@ -168,22 +161,37 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
             eq_start_date = start_date(date_select)
         eq_end_date = date.today()
     else:
+        # might need to check confirm that datepicker UI element returns appropriate format
         eq_start_date = custom_start_date
         eq_end_date = custom_end_date
-    eq_data_slice = eq_data_by_date.copy()
-    eq_data_slice = eq_data_by_date.loc[(eq_data_by_date.index >= pd.to_datetime(eq_start_date)) &
-                                        (eq_data_by_date.index <= pd.to_datetime(eq_end_date)),:]
+    eq_data = yf.Ticker(ticker_symbol).history(start = eq_start_date, end = eq_end_date, auto_adjust=False)
+    # Ticker is not providing accurate price information
+    # history returns dividend-adjusted price; use auto_adjust = False to avoid
+    # history periods: ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
+    # can use yf.download() for more open-ended requests, or just take max period and then filter (fewer requests)
+    # index is datetime stamp, only need dates for simple manipulations
+    eq_data_by_date = eq_data.copy()
+    eq_data_by_date['date'] = pd.to_datetime(eq_data.index.date)
+    eq_data_by_date = eq_data_by_date.set_index('date')
     # London stock exchange stocks reported in pence, convert to pounds
     if '.L' in ticker_symbol:
-        eq_data_slice.loc[:,['Open','High','Low','Close']] = eq_data_slice[['Open','High','Low','Close']] / 100
-    fig = go.Figure(data = [go.Candlestick(x = eq_data_slice.index,
-                                           open = eq_data_slice['Open'],
-                                           high = eq_data_slice['High'],
-                                           low = eq_data_slice['Low'],
-                                           close = eq_data_slice['Close'],
+        col_convert_list = ['Open',
+                            'High',
+                            'Low',
+                            'Close']
+        eq_data_by_date.loc[:,col_convert_list] = eq_data_by_date[col_convert_list] / 100
+    percent_change = ((eq_data_by_date.iloc[-1,eq_data_by_date.columns.get_loc('Close')] - \
+                      eq_data_by_date.iloc[0,eq_data_by_date.columns.get_loc('Close')]) / \
+                      eq_data_by_date.iloc[0,eq_data_by_date.columns.get_loc('Close')]) * 100
+    title_percent = '{:.2f}'.format(percent_change)
+    fig = go.Figure(data = [go.Candlestick(x = eq_data_by_date.index,
+                                           open = eq_data_by_date['Open'],
+                                           high = eq_data_by_date['High'],
+                                           low = eq_data_by_date['Low'],
+                                           close = eq_data_by_date['Close'],
                                            increasing_line_color = 'darkseagreen',
                                            decreasing_line_color = 'red')])
-    fig.update_layout(title = f'<b>{look_up_table.loc[ticker_symbol,equity_type]}</b>',
+    fig.update_layout(title = f'<b>{look_up_table.loc[ticker_symbol,equity_type]} ({title_percent}%)</b>',
                       title_font_size = 20,
                       title_x = 0.5,
                       xaxis_title = '<b>Date</b>',
@@ -203,7 +211,7 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
                      linecolor = 'black', # plot area border line color
                      # mirror = True,
                      gridcolor = 'lightgray')
-    if max(eq_data_slice['High'] > 10000):
+    if max(eq_data_by_date['High'] > 10000):
         fig.update_yaxes(tickformat = '000')
     return fig
 
