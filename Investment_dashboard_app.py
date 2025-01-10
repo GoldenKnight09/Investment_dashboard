@@ -9,6 +9,7 @@ import pandas as pd
 from dash import html, dcc, Input, Output, Dash, State
 import dash_bootstrap_components as dbc
 import Supplemental_functions_investment_dashboard as sup_func
+from datetime import date, timedelta
 # import yfinance as yf
 # import plotly.graph_objects as go
 
@@ -73,7 +74,11 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                                                            id = 'stock_radio_date_label'),
                                                                                                                                                                  dbc.RadioItems(options = radio_date_items,
                                                                                                                                                                                 value = '14d',
-                                                                                                                                                                                id = 'stock_radio_date')],
+                                                                                                                                                                                id = 'stock_radio_date'),
+                                                                                                                                                                 dcc.DatePickerRange(start_date = date.today() - timedelta(days = 14),
+                                                                                                                                                                                     end_date = date.today(),
+                                                                                                                                                                                     max_date_allowed = date.today(),
+                                                                                                                                                                                     id = 'stock_date_picker_range')],
                                                                                                                                                      body = True),
                                                                                                                                             fluid = True)],
                                                                                                                   width = 3),
@@ -90,7 +95,11 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                                                id = 'index_radio_date_label'),
                                                                                                                                                      dbc.RadioItems(options = radio_date_items,
                                                                                                                                                                     value = '14d',
-                                                                                                                                                                    id = 'index_radio_date')],
+                                                                                                                                                                    id = 'index_radio_date'),
+                                                                                                                                                     dcc.DatePickerRange(start_date = date.today() - timedelta(days = 14),
+                                                                                                                                                                         end_date = date.today(),
+                                                                                                                                                                         max_date_allowed = date.today(),
+                                                                                                                                                                         id = 'index_date_picker_range')],
                                                                                                                                          body = True),
                                                                                                                                 fluid = True),
                                                                                                                   width = 3),
@@ -100,7 +109,21 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                       label = 'Indices'),
                                                                               dbc.Tab(children = [],
                                                                                       label = 'Commodities'),
-                                                                              dbc.Tab(children = [],
+                                                                              dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(dbc.Card(children = [dcc.Dropdown(options = [{'label':'4-Week','value':'4-Week'}],
+                                                                                                                                                                  searchable = True,
+                                                                                                                                                                  placeholder = 'Select a security term...',
+                                                                                                                                                                  value = '4-Week',
+                                                                                                                                                                  id = 'treasury_dropdown_menu'),
+                                                                                                                                                     dbc.Label('Select a date range to display',
+                                                                                                                                                               id = 'treasure_radio_date_label'),
+                                                                                                                                                     dbc.RadioItems(options = radio_date_items,
+                                                                                                                                                                    value = '1m',
+                                                                                                                                                                    id = 'treasury_radio_date')]),
+                                                                                                                                fluid = True),
+                                                                                                                  width = 3),
+                                                                                                          dbc.Col(dbc.Container(children = [dcc.Graph(id = 'treasury_plot')],
+                                                                                                                                fluid = True),
+                                                                                                                  width = 6)]),
                                                                                       label = 'US Treasuries')]),
                                                          fluid = True))])
 
@@ -126,21 +149,50 @@ def stock_dropdown_menu(stock_group_value):
 def stock_dropdown_menu_value(stock_dropdown_menu_options):
     return stock_dropdown_menu_options[0]['value']
 
-@app.callback(Output(component_id='stock_plot',component_property='figure'),
-              Input(component_id='stock_dropdown_menu',component_property='value'),
+@app.callback(Output(component_id='stock_date_picker_range',component_property='style'),
               Input(component_id='stock_radio_date',component_property='value'))
 
-def render_stock_plot(stock_dropdown_ticker,stock_radio_date):
-    fig_stock = sup_func.generate_plotly_plot(stock_dropdown_ticker, stock_radio_date, 'Stock', stock_df)
+def render_stock_date_picker_range(stock_radio_date):
+    if stock_radio_date != 'custom':
+        return {'display':'none'}
+
+@app.callback(Output(component_id='stock_plot',component_property='figure'),
+              Input(component_id='stock_dropdown_menu',component_property='value'),
+              Input(component_id='stock_radio_date',component_property='value'),
+              Input(component_id='stock_date_picker_range',component_property='start_date'),
+              Input(component_id='stock_date_picker_range',component_property='end_date'))
+
+# TODO: try to find way to adjust default range for date_range_picker to correspond to last radio_button selction
+# might be doable with State() / callback_context (ctx)
+
+def render_stock_plot(stock_dropdown_ticker,stock_radio_date,stock_start_date,stock_end_date):
+    fig_stock = sup_func.generate_eq_plotly_plot(stock_dropdown_ticker, stock_radio_date, 'Stock', stock_df,stock_start_date,stock_end_date)
     return fig_stock
+
+@app.callback(Output(component_id='index_date_picker_range',component_property='style'),
+              Input(component_id='index_radio_date',component_property='value'))
+
+def render_index_date_picker_range(index_radio_date):
+    if index_radio_date != 'custom':
+        return {'display':'none'}
 
 @app.callback(Output(component_id='index_plot',component_property='figure'),
               Input(component_id='index_dropdown_menu',component_property='value'),
-              Input(component_id='index_radio_date',component_property='value'))
+              Input(component_id='index_radio_date',component_property='value'),
+              Input(component_id='index_date_picker_range',component_property='start_date'),
+              Input(component_id='index_date_picker_range',component_property='end_date'))
 
-def render_index_plot(index_dropdown_ticker,index_radio_date):
-    fig_index = sup_func.generate_plotly_plot(index_dropdown_ticker, index_radio_date, 'Index', index_df)
+def render_index_plot(index_dropdown_ticker,index_radio_date,index_start_date,index_end_date):
+    fig_index = sup_func.generate_eq_plotly_plot(index_dropdown_ticker, index_radio_date, 'Index', index_df,index_start_date,index_end_date)
     return fig_index
+
+@app.callback(Output(component_id='treasury_plot',component_property='figure'),
+              Input(component_id='treasury_dropdown_menu',component_property='value'),
+              Input(component_id='treasury_radio_date',component_property='value'))
+
+def render_treasure_plot(security_term,treasure_radio_date):
+    fig_treasury = sup_func.generate_treasury_plotly_plot(security_term, treasure_radio_date)
+    return fig_treasury
 
 if __name__ == '__main__':
     app.run(debug = False)

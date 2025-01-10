@@ -10,6 +10,7 @@ from datetime import date, timedelta, datetime
 from re import compile
 # import dash_bootstrap_components as dbc
 import yfinance as yf
+import requests
 import plotly.graph_objects as go
 
 # def generate_dropdown_menu_item(dropdown_item):
@@ -109,7 +110,6 @@ def equity_plot_y_label(ticker_symbol,equity_type):
         equity_type: string corresponding to the type of equity (Stock, Index, Commodity), since options differ for each type
     Returns: string with appropriate units for the plot
     '''
-    # select the function to use to determine equity plot y-axis label
     match equity_type:
         case 'Index':
             match ticker_symbol:
@@ -140,7 +140,7 @@ def equity_plot_y_label(ticker_symbol,equity_type):
             else:
                 return 'Price ($)'
 
-def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,custom_start_date = None,custom_end_date = None):
+def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_table,eq_custom_start_date,eq_custom_end_date):
     '''
     Function for generating a plot for equities
     
@@ -154,16 +154,17 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
     Returns:
         Plotly graph object: candlestick plot
     '''
-    if date_select != 'custom':
-        if date_select == 'max':
-            eq_start_date = datetime.strptime('19010101','%Y%m%d').date()
+    if eq_date_select != 'custom':
+        if eq_date_select == 'max':
+            # eq_start_date = datetime.strptime('19010101','%Y%m%d').date()
+            eq_start_date = '1901-01-01'
         else:
-            eq_start_date = start_date(date_select)
-        eq_end_date = date.today()
+            eq_start_date = start_date(eq_date_select)
+        # yfinance history() slice does not include final end date (typical Python)
+        eq_end_date = (date.today() + timedelta(days = 1)).strftime('%Y-%m-%d')
     else:
-        # might need to check confirm that datepicker UI element returns appropriate format
-        eq_start_date = custom_start_date
-        eq_end_date = custom_end_date
+        eq_start_date = eq_custom_start_date
+        eq_end_date = (datetime.strptime(eq_custom_end_date, '%Y-%m-%d') + timedelta(days = 1)).strftime('%Y-%m-%d')
     eq_data = yf.Ticker(ticker_symbol).history(start = eq_start_date, end = eq_end_date, auto_adjust=False)
     # Ticker is not providing accurate price information
     # history returns dividend-adjusted price; use auto_adjust = False to avoid
@@ -215,11 +216,91 @@ def generate_plotly_plot(ticker_symbol,date_select,equity_type,look_up_table,cus
         fig.update_yaxes(tickformat = '000')
     return fig
 
-def get_treasury_data():
+def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_date = None,t_custom_end_date=None):
     '''
     Placeholder function for get request for treasury data via API
     '''
-    pass
+    if t_date_select != 'custom':
+        if t_date_select == 'max':
+            # t_start_date = datetime.strptime('19010101','%Y%m%d').date()
+            t_start_date = '1901-01-01'
+        else:
+            t_start_date = start_date(t_date_select)
+        t_end_date = date.today().strftime('%Y-%m-%d')
+    else:
+        t_start_date = t_custom_start_date
+        t_end_date = t_custom_end_date
+    fields = ['security_term',
+              'issue_date',
+              # 'auction_date',
+              # 'price_per100',
+              'avg_med_discnt_rate']
+    treasury_base_url = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/'
+    sec_auctions_endpoint = 'v1/accounting/od/auctions_query'
+    fields_list_concat = ','.join(fields)
+    fields_str = f'fields={fields_list_concat}'
+    '''
+    Accepts: The filter parameter filter= accepts filters from the list below, as well as specified filter criteria.
+    Use a colon at the end of a filter parameter to pass a value or list of values.
+    For lists passed as filter criteria, use a comma-separated list within parentheses.
+    Filter for specific dates using the format YYYY-MM-DD.
+    The filter parameter accepts the following filters:
+        lt = Less than
+        lte = Less than or equal to
+        gt = Greater than
+        gte = Greater than or equal to
+        eq = Equal to
+        in = Contained in a given set
+    '''
+    filter_list = ['security_term:eq:' + security_term,
+                   'issue_date:gte:' + t_start_date,
+                   'issue_date:lte:' + t_end_date]
+    filter_list_concat = ','.join(filter_list)
+    filter_str = f'filter={filter_list_concat}'
+    sec_auction_list = []
+    req_status = 200
+    page_num = 1
+    # request all potential pages of responses into list before concatenating into single dataframe
+    while req_status == 200:
+        pagination_str = f'page[number]={page_num}&page[size]=1000'
+        response = requests.get(treasury_base_url + sec_auctions_endpoint + '?' + fields_str + '&' + filter_str + '&' + pagination_str)
+        req_status = response.status_code
+        # print(f'page_num {page_num} status_code is {req_status}')
+        if req_status == 200:
+            sec_auction_list.append(pd.DataFrame.from_dict(response.json()['data']))
+        page_num += 1
+    sec_auction_df = pd.concat(sec_auction_list).reset_index(drop = True)
+    sec_plot_df = sec_auction_df.copy()
+    # need to drop null
+    sec_plot_df = sec_plot_df.loc[sec_plot_df.avg_med_discnt_rate != 'null',:]
+    sec_plot_df['issue_date'] = pd.to_datetime(sec_auction_df['issue_date'])
+    # data is object format
+    sec_plot_df['avg_med_discnt_rate'] = sec_plot_df['avg_med_discnt_rate'].astype('float')
+    sec_plot_df = sec_plot_df.sort_values(by = 'issue_date')
+    fig = go.Figure(data = [go.Scatter(x = sec_plot_df['issue_date'],
+                                       y = sec_plot_df['avg_med_discnt_rate'],
+                                       mode = 'markers')])
+    fig.update_layout(title = f'<b>{security_term} effective interest rates</b>',
+                      title_font_size = 20,
+                      title_x = 0.5,
+                      xaxis_title = '<b>Date</b>',
+                      yaxis_title = '<b>Effective interest rate</b>',
+                      xaxis_rangeslider_visible=False,
+                      # showlegend = False,
+                      plot_bgcolor = 'white')
+    fig.update_xaxes(title_font_size = 15,
+                     tickfont_size = 12,
+                     showline = True, # plot area border line
+                     linecolor = 'black', # plot area border line color
+                     # mirror = True,
+                     gridcolor = 'lightgray')
+    fig.update_yaxes(title_font_size = 15,
+                     tickfont_size = 12,
+                     showline = True, # plot area border line
+                     linecolor = 'black', # plot area border line color
+                     # mirror = True,
+                     gridcolor = 'lightgray')
+    return fig
 
 def sup_func_main():
     pass
