@@ -71,7 +71,8 @@ def non_day_timedelta(increment_type,increment_amount):
             new_month, new_day = 1,1
     else:
         new_day = today_day
-    return str(new_year) + '-' + str(new_month) + '-' + str(new_day)
+    # need to return monthes & days padded with leading zeroes
+    return str(new_year) + '-' + str(new_month).zfill(2) + '-' + str(new_day).zfill(2)
 
 def start_date(radio_date_input):
     '''
@@ -156,7 +157,6 @@ def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_tab
     '''
     if eq_date_select != 'custom':
         if eq_date_select == 'max':
-            # eq_start_date = datetime.strptime('19010101','%Y%m%d').date()
             eq_start_date = '1901-01-01'
         else:
             eq_start_date = start_date(eq_date_select)
@@ -216,13 +216,12 @@ def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_tab
         fig.update_yaxes(tickformat = '000')
     return fig
 
-def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_date = None,t_custom_end_date=None):
+def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_date,t_custom_end_date):
     '''
     Placeholder function for get request for treasury data via API
     '''
     if t_date_select != 'custom':
         if t_date_select == 'max':
-            # t_start_date = datetime.strptime('19010101','%Y%m%d').date()
             t_start_date = '1901-01-01'
         else:
             t_start_date = start_date(t_date_select)
@@ -239,19 +238,6 @@ def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_dat
     sec_auctions_endpoint = 'v1/accounting/od/auctions_query'
     fields_list_concat = ','.join(fields)
     fields_str = f'fields={fields_list_concat}'
-    '''
-    Accepts: The filter parameter filter= accepts filters from the list below, as well as specified filter criteria.
-    Use a colon at the end of a filter parameter to pass a value or list of values.
-    For lists passed as filter criteria, use a comma-separated list within parentheses.
-    Filter for specific dates using the format YYYY-MM-DD.
-    The filter parameter accepts the following filters:
-        lt = Less than
-        lte = Less than or equal to
-        gt = Greater than
-        gte = Greater than or equal to
-        eq = Equal to
-        in = Contained in a given set
-    '''
     filter_list = ['security_term:eq:' + security_term,
                    'issue_date:gte:' + t_start_date,
                    'issue_date:lte:' + t_end_date]

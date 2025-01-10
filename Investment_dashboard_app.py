@@ -118,7 +118,12 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                                                id = 'treasure_radio_date_label'),
                                                                                                                                                      dbc.RadioItems(options = radio_date_items,
                                                                                                                                                                     value = '1m',
-                                                                                                                                                                    id = 'treasury_radio_date')]),
+                                                                                                                                                                    id = 'treasury_radio_date'),
+                                                                                                                                                     dcc.DatePickerRange(start_date = sup_func.start_date('1m'),
+                                                                                                                                                                         end_date = date.today(),
+                                                                                                                                                                         max_date_allowed = date.today(),
+                                                                                                                                                                         id = 'treasury_date_picker_range')],
+                                                                                                                                         body = True),
                                                                                                                                 fluid = True),
                                                                                                                   width = 3),
                                                                                                           dbc.Col(dbc.Container(children = [dcc.Graph(id = 'treasury_plot')],
@@ -186,12 +191,21 @@ def render_index_plot(index_dropdown_ticker,index_radio_date,index_start_date,in
     fig_index = sup_func.generate_eq_plotly_plot(index_dropdown_ticker, index_radio_date, 'Index', index_df,index_start_date,index_end_date)
     return fig_index
 
-@app.callback(Output(component_id='treasury_plot',component_property='figure'),
-              Input(component_id='treasury_dropdown_menu',component_property='value'),
+@app.callback(Output(component_id='treasury_date_picker_range',component_property='style'),
               Input(component_id='treasury_radio_date',component_property='value'))
 
-def render_treasure_plot(security_term,treasure_radio_date):
-    fig_treasury = sup_func.generate_treasury_plotly_plot(security_term, treasure_radio_date)
+def render_treasury_date_picker_range(treasury_radio_date):
+    if treasury_radio_date != 'custom':
+        return {'display':'none'}
+    
+@app.callback(Output(component_id='treasury_plot',component_property='figure'),
+              Input(component_id='treasury_dropdown_menu',component_property='value'),
+              Input(component_id='treasury_radio_date',component_property='value'),
+              Input(component_id='treasury_date_picker_range',component_property='start_date'),
+              Input(component_id='treasury_date_picker_range',component_property='end_date'))
+
+def render_treasure_plot(security_term,treasure_radio_date,treasury_start_date,treasury_end_date):
+    fig_treasury = sup_func.generate_treasury_plotly_plot(security_term, treasure_radio_date, treasury_start_date, treasury_end_date)
     return fig_treasury
 
 if __name__ == '__main__':
