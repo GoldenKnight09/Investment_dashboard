@@ -9,20 +9,16 @@ import pandas as pd
 from dash import html, dcc, Input, Output, Dash, State
 import dash_bootstrap_components as dbc
 import Supplemental_functions_investment_dashboard as sup_func
-from datetime import date, timedelta
+from datetime import date
 # import yfinance as yf
 # import plotly.graph_objects as go
 
 # import all ticker symbols to be used in app
-investment_ticker_symbols = pd.read_excel(io = 'inputs/Investment_ticker_symbols.xlsx',
+investment_ticker_symbols = pd.read_excel(io = 'inputs/Investment_ticker_symbols_and_treasury_terms.xlsx',
                                           sheet_name = None)
 
 # look-up df for stocks:
 stock_df = investment_ticker_symbols['Stock_list'].set_index('Ticker')
-# look-up df for indices:
-index_df = investment_ticker_symbols['Index_list'].set_index('Ticker')
-index_dropdown_dict = list({'label':investment_ticker_symbols['Index_list'].loc[row,'Index'],
-                            'value':investment_ticker_symbols['Index_list'].loc[row,'Ticker']} for row in investment_ticker_symbols['Index_list'].index)
 stock_dropdown_dict_by_group = {}
 stock_group_list = list(investment_ticker_symbols['Stock_list'].Group.unique())
 for stock_group in stock_group_list:
@@ -30,6 +26,17 @@ for stock_group in stock_group_list:
     stock_dict_list_by_group = list({'label':stock_group_df.loc[row,'Stock'],
                                      'value':stock_group_df.loc[row,'Ticker']} for row in stock_group_df.index)
     stock_dropdown_dict_by_group[stock_group] = stock_dict_list_by_group
+# look-up df for indices:
+index_df = investment_ticker_symbols['Index_list'].set_index('Ticker')
+index_dropdown_dict = list({'label':investment_ticker_symbols['Index_list'].loc[row,'Index'],
+                            'value':investment_ticker_symbols['Index_list'].loc[row,'Ticker']} for row in investment_ticker_symbols['Index_list'].index)
+
+# dropdown menu dict for treasruries
+treasury_dropdown_dict = list({'label':investment_ticker_symbols['Treasury_list'].loc[row,'Name'],
+                               'value':investment_ticker_symbols['Treasury_list'].loc[row,'Term'] + ';' + investment_ticker_symbols['Treasury_list'].loc[row,'Type']} for row in investment_ticker_symbols['Treasury_list'].index)
+
+# look-up df for treasuries
+# treasury_df = investment_ticker_symbols['Security_list'].set_index('Term')
 
 # load stock category descriptions modal from txt file (with markdown)
 with open('inputs/stock_categories_modal.txt','r') as scm:
@@ -75,7 +82,7 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                                                  dbc.RadioItems(options = radio_date_items,
                                                                                                                                                                                 value = '14d',
                                                                                                                                                                                 id = 'stock_radio_date'),
-                                                                                                                                                                 dcc.DatePickerRange(start_date = date.today() - timedelta(days = 14),
+                                                                                                                                                                 dcc.DatePickerRange(start_date = sup_func.start_date('14d'),
                                                                                                                                                                                      end_date = date.today(),
                                                                                                                                                                                      max_date_allowed = date.today(),
                                                                                                                                                                                      id = 'stock_date_picker_range')],
@@ -96,7 +103,7 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                                      dbc.RadioItems(options = radio_date_items,
                                                                                                                                                                     value = '14d',
                                                                                                                                                                     id = 'index_radio_date'),
-                                                                                                                                                     dcc.DatePickerRange(start_date = date.today() - timedelta(days = 14),
+                                                                                                                                                     dcc.DatePickerRange(start_date = sup_func.start_date('14d'),
                                                                                                                                                                          end_date = date.today(),
                                                                                                                                                                          max_date_allowed = date.today(),
                                                                                                                                                                          id = 'index_date_picker_range')],
@@ -109,10 +116,10 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                       label = 'Indices'),
                                                                               dbc.Tab(children = [],
                                                                                       label = 'Commodities'),
-                                                                              dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(dbc.Card(children = [dcc.Dropdown(options = [{'label':'4-Week','value':'4-Week'}],
+                                                                              dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(dbc.Card(children = [dcc.Dropdown(options = treasury_dropdown_dict,
                                                                                                                                                                   searchable = True,
                                                                                                                                                                   placeholder = 'Select a security term...',
-                                                                                                                                                                  value = '4-Week',
+                                                                                                                                                                  value = '4-Week;Bill',
                                                                                                                                                                   id = 'treasury_dropdown_menu'),
                                                                                                                                                      dbc.Label('Select a date range to display',
                                                                                                                                                                id = 'treasure_radio_date_label'),
@@ -204,8 +211,10 @@ def render_treasury_date_picker_range(treasury_radio_date):
               Input(component_id='treasury_date_picker_range',component_property='start_date'),
               Input(component_id='treasury_date_picker_range',component_property='end_date'))
 
-def render_treasure_plot(security_term,treasure_radio_date,treasury_start_date,treasury_end_date):
-    fig_treasury = sup_func.generate_treasury_plotly_plot(security_term, treasure_radio_date, treasury_start_date, treasury_end_date)
+def render_treasure_plot(security_dropdown_item,treasure_radio_date,treasury_start_date,treasury_end_date):
+    security_type = security_dropdown_item.split(';')[1]
+    security_term = security_dropdown_item.split(';')[0]
+    fig_treasury = sup_func.generate_treasury_plotly_plot(security_type, security_term, treasure_radio_date, treasury_start_date, treasury_end_date)
     return fig_treasury
 
 if __name__ == '__main__':

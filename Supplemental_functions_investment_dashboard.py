@@ -147,7 +147,7 @@ def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_tab
     
     Inputs:
         ticker_symbol: string corresponding to the ticker symbol of the equity
-        date_select: string corresponding to the output from the radioitem selction
+        eq_date_select: string corresponding to the output from the radioitem selection
         equity_type: string correponding to the type of equity (Stock, Index, Commodity)
         look_up_table: dataframe using ticker symbols as index with full equity name as data
         custom_start_date: datetime object from daterange picker for starting slice date when custum date range is selected
@@ -216,9 +216,18 @@ def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_tab
         fig.update_yaxes(tickformat = '000')
     return fig
 
-def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_date,t_custom_end_date):
+def generate_treasury_plotly_plot(security_type,security_term,t_date_select,t_custom_start_date,t_custom_end_date):
     '''
-    Placeholder function for get request for treasury data via API
+    Function for interfacing with treasury securities auctions data api and obtain interest rates for issue securities
+    
+    Inputs:
+        security_type: string corresponding to the type of security auction (Bill, Note, Bond)
+        security_term: string corresponding to the term length for security (weeks for Bill; 2,3,5 years for Note; or 20, 30 years for Bond)
+        t_date_select: string corresponding to the output from the radioitem selection
+        t_custom_start_date: datetime object from daterange picker for starting slice date when custum date range is selected
+        t_custom_end_date: datetime object from daterange picker for ending slice date when custum date range is selected
+    Returns:
+        Plotly graph object: scatter plot of interest rates over time
     '''
     if t_date_select != 'custom':
         if t_date_select == 'max':
@@ -229,16 +238,19 @@ def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_dat
     else:
         t_start_date = t_custom_start_date
         t_end_date = t_custom_end_date
-    fields = ['security_term',
+    fields = ['security_type',
+              'security_term',
               'issue_date',
-              # 'auction_date',
+              'auction_date',
               # 'price_per100',
-              'avg_med_discnt_rate']
+              'avg_med_discnt_rate',
+              'int_rate']
     treasury_base_url = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/'
     sec_auctions_endpoint = 'v1/accounting/od/auctions_query'
     fields_list_concat = ','.join(fields)
     fields_str = f'fields={fields_list_concat}'
-    filter_list = ['security_term:eq:' + security_term,
+    filter_list = ['security_type:eq:' + security_type,
+                   'security_term:eq:' + security_term,
                    'issue_date:gte:' + t_start_date,
                    'issue_date:lte:' + t_end_date]
     filter_list_concat = ','.join(filter_list)
@@ -257,16 +269,33 @@ def generate_treasury_plotly_plot(security_term,t_date_select,t_custom_start_dat
         page_num += 1
     sec_auction_df = pd.concat(sec_auction_list).reset_index(drop = True)
     sec_plot_df = sec_auction_df.copy()
-    # need to drop null
-    sec_plot_df = sec_plot_df.loc[sec_plot_df.avg_med_discnt_rate != 'null',:]
+    # interest rate column depends on security type
+    if security_type == 'Bill':
+        # need to drop null
+        sec_plot_df = sec_plot_df.loc[sec_plot_df.avg_med_discnt_rate != 'null',:]
+        # data is object format
+        sec_plot_df['avg_med_discnt_rate'] = sec_plot_df['avg_med_discnt_rate'].astype('float')
+        y_plot_str = 'avg_med_discnt_rate'
+    elif (security_type == 'Note') | (security_type == 'Bond'):
+        '''
+        Notes & Bonds can be reopened after the initial auction
+        Since the maturity date does not change, this results in security terms of partial years
+        (e.g. 10 year Note can be reopened twice one and two months, respectively, after initial issue date)
+        For more info, see here: https://www.treasurydirect.gov/auctions/reopenings/
+        '''
+        y_plot_str = 'int_rate'
+        # need to drop null
+        sec_plot_df = sec_plot_df.loc[sec_plot_df.int_rate != 'null',:]
+        # data is object format
+        sec_plot_df['int_rate'] = sec_plot_df['int_rate'].astype('float')
     sec_plot_df['issue_date'] = pd.to_datetime(sec_auction_df['issue_date'])
-    # data is object format
-    sec_plot_df['avg_med_discnt_rate'] = sec_plot_df['avg_med_discnt_rate'].astype('float')
     sec_plot_df = sec_plot_df.sort_values(by = 'issue_date')
+    # TODO: address lack of update if there is no data in selected date range
+    # This is a problem with the infrequent issue schedule for Bonds
     fig = go.Figure(data = [go.Scatter(x = sec_plot_df['issue_date'],
-                                       y = sec_plot_df['avg_med_discnt_rate'],
+                                       y = sec_plot_df[y_plot_str],
                                        mode = 'markers')])
-    fig.update_layout(title = f'<b>{security_term} effective interest rates</b>',
+    fig.update_layout(title = f'<b>{security_term} {security_type} effective interest rates</b>',
                       title_font_size = 20,
                       title_x = 0.5,
                       xaxis_title = '<b>Date</b>',
