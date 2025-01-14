@@ -140,6 +140,18 @@ def equity_plot_y_label(ticker_symbol,equity_type):
                         return 'Price (HK$)'
             else:
                 return 'Price ($)'
+        case 'Commodity':
+            match ticker_symbol:
+                case 'BZ=F' | 'CL=F':
+                    return 'Price ($/bbl)'
+                case 'NG=F':
+                    return 'Price ($/MMBTU)'
+                case 'GC=F' | 'SI=F':
+                    return 'Price ($/oz)'
+                case 'CC=F':
+                    return 'Price ($/ton)'
+                case _:
+                    return 'Price ($)'
 
 def generate_eq_plotly_plot(ticker_symbol,eq_date_select,equity_type,look_up_table,eq_custom_start_date,eq_custom_end_date):
     '''

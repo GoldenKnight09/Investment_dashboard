@@ -31,12 +31,14 @@ index_df = investment_ticker_symbols['Index_list'].set_index('Ticker')
 index_dropdown_dict = list({'label':investment_ticker_symbols['Index_list'].loc[row,'Index'],
                             'value':investment_ticker_symbols['Index_list'].loc[row,'Ticker']} for row in investment_ticker_symbols['Index_list'].index)
 
+# look-up df for commodities
+commodity_df = investment_ticker_symbols['Commodity_list'].set_index('Ticker')
+commodity_dropdown_dict = list({'label':investment_ticker_symbols['Commodity_list'].loc[row,'Commodity'],
+                                'value':investment_ticker_symbols['Commodity_list'].loc[row,'Ticker']} for row in investment_ticker_symbols['Commodity_list'].index)
+
 # dropdown menu dict for treasruries
 treasury_dropdown_dict = list({'label':investment_ticker_symbols['Treasury_list'].loc[row,'Name'],
                                'value':investment_ticker_symbols['Treasury_list'].loc[row,'Term'] + ';' + investment_ticker_symbols['Treasury_list'].loc[row,'Type']} for row in investment_ticker_symbols['Treasury_list'].index)
-
-# look-up df for treasuries
-# treasury_df = investment_ticker_symbols['Security_list'].set_index('Term')
 
 # load stock category descriptions modal from txt file (with markdown)
 with open('inputs/stock_categories_modal.txt','r') as scm:
@@ -114,8 +116,27 @@ app.layout = html.Div(children = [html.Div(html.H2('Stock/Index/Commodity/Treasu
                                                                                                                                 fluid = True),
                                                                                                                   width = 6)]),
                                                                                       label = 'Indices'),
-                                                                              dbc.Tab(children = [],
-                                                                                      label = 'Commodities'),
+                                                                              dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(dbc.Card(children = [dcc.Dropdown(options = commodity_dropdown_dict,
+                                                                                                                                                                  searchable = True,
+                                                                                                                                                                  placeholder = 'Select an commodity...',
+                                                                                                                                                                  value = 'CL=F',
+                                                                                                                                                                  id = 'commodities_dropdown_menu'),
+                                                                                                                                                     dbc.Label('Select a date range to display',
+                                                                                                                                                               id = 'commodities_radio_date_label'),
+                                                                                                                                                     dbc.RadioItems(options = radio_date_items,
+                                                                                                                                                                    value = '14d',
+                                                                                                                                                                    id = 'commodities_radio_date'),
+                                                                                                                                                     dcc.DatePickerRange(start_date = sup_func.start_date('14d'),
+                                                                                                                                                                         end_date = date.today(),
+                                                                                                                                                                         max_date_allowed = date.today(),
+                                                                                                                                                                         id = 'commodities_date_picker_range')],
+                                                                                                                                         body = True),
+                                                                                                                                fluid = True),
+                                                                                                                  width = 3),
+                                                                                                          dbc.Col(dbc.Container(children = [dcc.Graph(id = 'commodities_plot')],
+                                                                                                                                fluid = True),
+                                                                                                                  width = 6)]),
+                                                                                      label = 'Commodities (Futures)'),
                                                                               dbc.Tab(dbc.Row(children = [dbc.Col(dbc.Container(dbc.Card(children = [dcc.Dropdown(options = treasury_dropdown_dict,
                                                                                                                                                                   searchable = True,
                                                                                                                                                                   placeholder = 'Select a security term...',
@@ -197,6 +218,23 @@ def render_index_date_picker_range(index_radio_date):
 def render_index_plot(index_dropdown_ticker,index_radio_date,index_start_date,index_end_date):
     fig_index = sup_func.generate_eq_plotly_plot(index_dropdown_ticker, index_radio_date, 'Index', index_df,index_start_date,index_end_date)
     return fig_index
+
+@app.callback(Output(component_id='commodities_date_picker_range',component_property='style'),
+              Input(component_id='commodities_radio_date',component_property='value'))
+
+def render_commodities_date_picker_range(commodities_radio_date):
+    if commodities_radio_date != 'custom':
+        return {'display':'none'}
+
+@app.callback(Output(component_id='commodities_plot',component_property='figure'),
+              Input(component_id='commodities_dropdown_menu',component_property='value'),
+              Input(component_id='commodities_radio_date',component_property='value'),
+              Input(component_id='commodities_date_picker_range',component_property='start_date'),
+              Input(component_id='commodities_date_picker_range',component_property='end_date'))
+
+def render_commodities_plot(commodities_dropdown_ticker,commodities_radio_date,commidties_start_date,commodities_end_date):
+    fig_commodities = sup_func.generate_eq_plotly_plot(commodities_dropdown_ticker, commodities_radio_date, 'Commodity', commodity_df,commidties_start_date,commodities_end_date)
+    return fig_commodities
 
 @app.callback(Output(component_id='treasury_date_picker_range',component_property='style'),
               Input(component_id='treasury_radio_date',component_property='value'))
